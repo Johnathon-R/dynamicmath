@@ -29,6 +29,11 @@
 #include <limits>
 #include <cmath>
 #include <memory>
+#include <chrono>
+#include <cassert>
+
+#define LOG_ENABLED true
+#define LOG(msg) if (LOG_ENABLED) { std::cerr << "[LOG] " << msg << std::endl; }
 
 /**
  * @brief Abstract base class
@@ -173,7 +178,7 @@ public:
     size_t getSizeInBytes() const { return value->sizeInBytes(); }
 
     // Serialization
-    std::string serialize() const { return value->serialize(); }
+    std::string serialize() const { return value->typeName() + ":" + value->serialize(); }
     static dnum deserialize(const std::string& s) {
         auto delim = s.find(':');
         if (delim == std::string::npos) throw std::invalid_argument("Invalid format");
@@ -196,6 +201,44 @@ public:
     }
 };
 
+/**
+ * @brief Unit tests
+ * 
+ */
+void runUnitTests() {
+    LOG("Running unit tests...");
+    dnum a(10), b(5);
+
+    std::cout << (a+b).serialize() << std::endl;
+    assert((a + b).serialize() == "short:15");
+    assert((a - b).serialize() == "short:5");
+    assert((a * b).serialize() == "short:50");
+    assert((a / b).serialize() == "short:2");
+    assert((a < b) == false);
+    assert((a == b) == false);
+    assert((a == dnum(10)) == true);
+    LOG("All unit tests passed.");
+}
+
+/**
+ * @brief Benchmark test
+ * 
+ */
+void runBenchmark() {
+    LOG("Running benchmark...");
+    auto start = std::chrono::high_resolution_clock::now();
+    dnum sum(0);
+    for (int i = 0; i < 1000000; ++i) {
+        sum = sum + dnum(i);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    LOG("Benchmark completed in " << elapsed.count() << " seconds");
+}
+
 int main() {
+    runUnitTests();
+    runBenchmark();
+ 
     return 0;
 }
