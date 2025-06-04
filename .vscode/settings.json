@@ -25,6 +25,15 @@
         "variant": "cpp",
         "vector": "cpp",
         "algorithm": "cpp",
-        "__locale": "cpp"
+        "__locale": "cpp",
+        "__node_handle": "cpp",
+        "bitset": "cpp",
+        "deque": "cpp",
+        "optional": "cpp",
+        "ratio": "cpp",
+        "iostream": "cpp",
+        "sstream": "cpp",
+        "functional": "cpp",
+        "type_traits": "cpp"
     }
 }

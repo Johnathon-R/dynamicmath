@@ -9,22 +9,26 @@
  * 
  */
 
+// Traits
 #include <type_traits>
 #include <concepts>
-#include <vector>
 #include <variant>
 
-#include <iostream>
-#include <memory>
-#include <cmath>
-#include <limits>
+// Structures
+#include <vector>
+#include <unordered_map>
 
+// String/IO
 #include <string>
 #include <stdexcept>
 #include <sstream>
-#include <unordered_map>
+#include <iostream>
 
+// General functionality
 #include <functional>
+#include <limits>
+#include <cmath>
+#include <memory>
 
 /**
  * @brief Abstract base class
@@ -48,190 +52,75 @@ public:
     virtual std::unique_ptr<dbase> clone() const = 0;
 };
 
+/**
+ * @brief Memory pooling template
+ * 
+ * @tparam T 
+ */
+template <typename T>
+class Pool {
+    static std::vector<std::unique_ptr<T>> pool;
+    static std::mutex mutex;
+public:
+    template<typename... Args>
+    static std::unique_ptr<T> get(Args&&... args) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!pool.empty()) {
+            std::unique_ptr<T> ptr = std::move(pool.back());
+            pool.pop_back();
+            new (ptr.get()) T(std::forward<Args>(args)...);
+            return ptr;
+        }
+        return std::make_unique<T>(std::forward<Args>(args)...);
+    }
+
+    static void release(std::unique_ptr<T>&& obj) {
+        std::lock_guard<std::mutex> lock(mutex);
+        pool.push_back(std::move(obj));
+    }
+};
 
 // Forward declaration of promotion function
 std::unique_ptr<dbase> promote(double lhs, double rhs);
 
-/**
- * @brief DynamicShort class
- * 
- */
-class dyshort : public dbase {
-    short value;
+template<typename T>
+std::vector<std::unique_ptr<T>> Pool<T>::pool;
 
-public:
-    explicit dyshort(short v) : value(v) {}
+template<typename T>
+std::mutex Pool<T>::mutex;
 
-    std::unique_ptr<dbase> add(const dbase& other) const override {
-        return promote(this->toDouble() + other.toDouble());
-    }
-
-    std::unique_ptr<dbase> subtract(const dbase& other) const override {
-        return promote(this->toDouble() - other.toDouble());
-    }
-
-    std::unique_ptr<dbase> multiply(const dbase& other) const override {
-        return promote(this->toDouble() * other.toDouble());
-    }
-
-    std::unique_ptr<dbase> divide(const dbase& other) const override {
-        double denominator = other.toDouble();
-        if (denominator == 0.0) throw std::runtime_error("Division by zero");
-        return promote(this->toDouble() / denominator);
-    }
-
-    double toDouble() const override {
-        return static_cast<double>(value);
-    }
-
-    std::string typeName() const override {
-        return "short";
-    }
-
-    size_t sizeInBytes() const override {
-        return sizeof(short);
-    }
-
-    std::string serialize() const override {
-        return std::to_string(value);
-    }
+#define DEFINE_NUMERIC_CLASS(NAME, TYPE) \
+class dy##NAME : public dbase { \
+    TYPE value; \
+public: \
+    explicit dy##NAME(TYPE v) : value(v) {} \
+    std::unique_ptr<dbase> add(const dbase& other) const override { \
+        return promote(this->value, other.toDouble()); \
+    } \
+    std::unique_ptr<dbase> subtract(const dbase& other) const override { \
+        return promote(this->value - other.toDouble(), 0); \
+    } \
+    std::unique_ptr<dbase> multiply(const dbase& other) const override { \
+        return promote(this->value * other.toDouble(), 0); \
+    } \
+    std::unique_ptr<dbase> divide(const dbase& other) const override { \
+        double denom = other.toDouble(); \
+        if (denom == 0.0) throw std::runtime_error("Division by zero"); \
+        return promote(this->value / denom, 0); \
+    } \
+    bool lessThan(const dbase& other) const override { return this->value < other.toDouble(); } \
+    bool equals(const dbase& other) const override { return this->value == other.toDouble(); } \
+    double toDouble() const override { return static_cast<double>(value); } \
+    std::string typeName() const override { return #TYPE; } \
+    size_t sizeInBytes() const override { return sizeof(TYPE); } \
+    std::string serialize() const override { return std::to_string(value); } \
+    std::unique_ptr<dbase> clone() const override { return std::make_unique<dy##NAME>(*this); } \
 };
 
-/**
- * @brief DynamicInt class
- * 
- */
-class dyint : public dbase {
-    int value;
-
-public:
-    explicit dyint(int v) : value(v) {}
-
-    std::unique_ptr<dbase> add(const dbase& other) const override {
-        return promote(this->toDouble() + other.toDouble());
-    }
-
-    std::unique_ptr<dbase> subtract(const dbase& other) const override {
-        return promote(this->toDouble() - other.toDouble());
-    }
-
-    std::unique_ptr<dbase> multiply(const dbase& other) const override {
-        return promote(this->toDouble() * other.toDouble());
-    }
-
-    std::unique_ptr<dbase> divide(const dbase& other) const override {
-        double denominator = other.toDouble();
-        if (denominator == 0.0) throw std::runtime_error("Division by zero");
-        return promote(this->toDouble() / denominator);
-    }
-
-    double toDouble() const override {
-        return static_cast<double>(value);
-    }
-
-    std::string typeName() const override {
-        return "int";
-    }
-
-    size_t sizeInBytes() const override {
-        return sizeof(int);
-    }
-
-    std::string serialize() const override {
-        return std::to_string(value);
-    }
-};
-
-
-/**
- * @brief DynamicFloat class
- * 
- */
-class dyfloat : public dbase {
-    float value;
-
-public:
-    explicit dyfloat(float v) : value(v) {}
-
-    std::unique_ptr<dbase> add(const dbase& other) const override {
-        return promote(this->toDouble() + other.toDouble());
-    }
-
-    std::unique_ptr<dbase> subtract(const dbase& other) const override {
-        return promote(this->toDouble() - other.toDouble());
-    }
-
-    std::unique_ptr<dbase> multiply(const dbase& other) const override {
-        return promote(this->toDouble() * other.toDouble());
-    }
-
-    std::unique_ptr<dbase> divide(const dbase& other) const override {
-        double denominator = other.toDouble();
-        if (denominator == 0.0) throw std::runtime_error("Division by zero");
-        return promote(this->toDouble() / denominator);
-    }
-
-    double toDouble() const override {
-        return static_cast<double>(value);
-    }
-
-    std::string typeName() const override {
-        return "float";
-    }
-
-    size_t sizeInBytes() const override {
-        return sizeof(float);
-    }
-
-    std::string serialize() const override {
-        return std::to_string(value);
-    }
-};
-
-/**
- * @brief DynamicDouble class
- * 
- */
-class dydouble : public dbase {
-    double value;
-public:
-    explicit dydouble(double v) : value(v) {}
-
-    std::unique_ptr<dbase> add(const dbase& other) const override {
-        return promote(this->toDouble() + other.toDouble());
-    }
-
-    std::unique_ptr<dbase> subtract(const dbase& other) const override {
-        return promote(this->toDouble() - other.toDouble());
-    }
-
-    std::unique_ptr<dbase> multiply(const dbase& other) const override {
-        return promote(this->toDouble() * other.toDouble());
-    }
-
-    std::unique_ptr<dbase> divide(const dbase& other) const override {
-        double denominator = other.toDouble();
-        if (denominator == 0.0) throw std::runtime_error("Division by zero");
-        return promote(this->toDouble() / denominator);
-    }
-
-    double toDouble() const override {
-        return value;
-    }
-
-    std::string typeName() const override {
-        return "double";
-    }
-
-    size_t sizeInBytes() const override {
-        return sizeof(double);
-    }
-
-    std::string serialize() const override {
-        return std::to_string(value);
-    }
-};
-
+DEFINE_NUMERIC_CLASS(Short, short)
+DEFINE_NUMERIC_CLASS(Int, int)
+DEFINE_NUMERIC_CLASS(Float, float)
+DEFINE_NUMERIC_CLASS(Double, double)
 
 /**
  * @brief Promotion logic
@@ -239,19 +128,22 @@ public:
  * @param value 
  * @return std::unique_ptr<dbase> 
  */
-std::unique_ptr<dbase> promote(double value) {
-    if (std::floor(value) == value) {
-        if (value >= std::numeric_limits<short>::min() && value <= std::numeric_limits<short>::max())
-            return std::make_unique<dyshort>(static_cast<short>(value));
+std::unique_ptr<dbase> promote(double lhs, double rhs) {
+    double result = lhs + rhs;
 
-        if (value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max())
-            return std::make_unique<dyint>(static_cast<int>(value));
+    // Non-floating point number promotion
+    if (std::floor(result) == result) {
+        if (result >= std::numeric_limits<short>::min() && result <= std::numeric_limits<short>::max())
+            return Pool<dyShort>::get(static_cast<short>(result));
+        if (result >= std::numeric_limits<int>::min() && result <= std::numeric_limits<int>::max())
+            return Pool<dyInt>::get(static_cast<int>(result));
     }
 
-    if (value >= std::numeric_limits<float>::lowest() && value <= std::numeric_limits<float>::max())
-        return std::make_unique<dyfloat>(static_cast<float>(value));
-    if (value >= std::numeric_limits<double>::lowest() && value <= std::numeric_limits<double>::max()) 
-        return std::make_unique<dydouble>(static_cast<double>(value));
+    // Floating point number promotion
+    if (result >= std::numeric_limits<float>::lowest() && result <= std::numeric_limits<float>::max())
+        return Pool<dyFloat>::get(static_cast<float>(result));
+    if (result >= std::numeric_limits<double>::lowest() && result <= std::numeric_limits<double>::max()) 
+        return Pool<dyDouble>::get(static_cast<double>(result));
 
     throw std::overflow_error("Value too large for supported types");
 }
@@ -282,9 +174,28 @@ public:
 
     // Serialization
     std::string serialize() const { return value->serialize(); }
+    static dnum deserialize(const std::string& s) {
+        auto delim = s.find(':');
+        if (delim == std::string::npos) throw std::invalid_argument("Invalid format");
+
+        std::string type = s.substr(0, delim);
+        std::string val = s.substr(delim + 1);
+        std::istringstream iss(val);
+
+        if (type == "short") { short v; iss >> v; return dnum(Pool<dyShort>::get(v)); }
+        if (type == "int")   { int v;   iss >> v; return dnum(Pool<dyInt>::get(v)); }
+        if (type == "float") { float v; iss >> v; return dnum(Pool<dyFloat>::get(v)); }
+        if (type == "double"){ double v;iss >> v; return dnum(Pool<dyDouble>::get(v)); }
+
+        throw std::invalid_argument("Unknown type: " + type);
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const dnum& n) {
         os << n.value->toDouble() << " (" << n.value->typeName() << ", " << n.value->sizeInBytes() << " bytes)";
         return os;
     }
 };
+
+int main() {
+    return 0;
+}
